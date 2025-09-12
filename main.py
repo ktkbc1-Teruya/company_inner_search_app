@@ -1,7 +1,17 @@
 """
 このファイルは、Webアプリのメイン処理が記述されたファイルです。
 """
+import os
+from dotenv import load_dotenv
 
+# ローカル環境なら .env を読み込む
+load_dotenv()
+
+# 環境変数から APIキーを取得
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY が設定されていません")
 ############################################################
 # 1. ライブラリの読み込み
 ############################################################
@@ -58,6 +68,10 @@ if not "initialized" in st.session_state:
 ############################################################
 # タイトル表示
 cn.display_app_title()
+
+# 会話ログの初期化
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 # モード表示
 cn.display_select_mode()
