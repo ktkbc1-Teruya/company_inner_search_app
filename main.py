@@ -2,16 +2,25 @@
 このファイルは、Webアプリのメイン処理が記述されたファイルです。
 """
 import os
-from dotenv import load_dotenv
+import streamlit as st
 
 # ローカル環境なら .env を読み込む
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # 本番環境(Streamlit Cloud)ではdotenvを使わない
 
 # 環境変数から APIキーを取得
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# デバッグ用（Secrets反映確認）
+st.write("OPENAI_API_KEY is set:", bool(OPENAI_API_KEY))
+
 if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY が設定されていません")
+    st.error("❌ OPENAI_API_KEY が設定されていません")
+    st.stop()
+    
 ############################################################
 # 1. ライブラリの読み込み
 ############################################################
