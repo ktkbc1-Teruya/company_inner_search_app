@@ -2,51 +2,29 @@
 このファイルは、Webアプリのメイン処理が記述されたファイルです。
 """
 import os
-import streamlit as st
-
-# ローカル環境なら .env を読み込む
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass  # 本番環境(Streamlit Cloud)ではdotenvを使わない
-
-# 環境変数から APIキーを取得
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# デバッグ用（Secrets反映確認）
-st.write("OPENAI_API_KEY is set:", bool(OPENAI_API_KEY))
-
-if not OPENAI_API_KEY:
-    st.error("❌ OPENAI_API_KEY が設定されていません")
-    st.stop()
-    
-############################################################
-# 1. ライブラリの読み込み
-############################################################
-# 「.env」ファイルから環境変数を読み込むための関数
 from dotenv import load_dotenv
-# ログ出力を行うためのモジュール
+
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY が設定されていません")
+
 import logging
-# streamlitアプリの表示を担当するモジュール
 import streamlit as st
-# （自作）画面表示以外の様々な関数が定義されているモジュール
 import utils
-# （自作）アプリ起動時に実行される初期化処理が記述された関数
 from initialize import initialize
-# （自作）画面表示系の関数が定義されているモジュール
 import components as cn
-# （自作）変数（定数）がまとめて定義・管理されているモジュール
 import constants as ct
 
-
+# ← この辺に st.set_page_config がある
+st.set_page_config(
+    page_title=ct.APP_NAME
+)
 ############################################################
 # 2. 設定関連
 ############################################################
 # ブラウザタブの表示文言を設定
-st.set_page_config(
-    page_title=ct.APP_NAME
-)
+# st.set_page_config は既に呼び出されています
 
 # ログ出力を行うためのロガーの設定
 logger = logging.getLogger(ct.LOGGER_NAME)
