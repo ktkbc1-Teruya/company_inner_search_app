@@ -6,14 +6,18 @@
 # ライブラリの読み込み
 ############################################################
 import os
+import sys
+import unicodedata
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from uuid import uuid4
 import streamlit as st
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI 
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.vectorstores import Chroma
+from chromadb.config import Settings
 import constants as ct
-
 
 
 # Streamlit Cloud の Secrets からキーを取得
@@ -23,12 +27,6 @@ llm = ChatOpenAI(
     openai_api_key=api_key,
     model="gpt-4o-mini"
 )
-
-############################################################
-# 設定関連
-############################################################
-
-
 
 ############################################################
 # 関数定義
@@ -47,56 +45,6 @@ def initialize():
     # RAGのRetrieverを作成
     initialize_retriever()
 
-def initialize_session_id():
-    """
-    セッションIDを初期化
-    """
-    if "session_id" not in st.session_state:
-        st.session_state.session_id = str(uuid4())
-
-
-def initialize_logger():
-    """
-    ログ出力の設定
-    """
-    # 指定のログフォルダが存在すれば読み込み、存在しなければ新規作成
-    os.makedirs(ct.LOG_DIR_PATH, exist_ok=True)
-    
-    # 引数に指定した名前のロガー（ログを記録するオブジェクト）を取得
-    # 再度別の箇所で呼び出した場合、すでに同じ名前のロガーが存在していれば読み込む
-    logger = logging.getLogger(ct.LOGGER_NAME)
-    # loggerはこの関数内のみで使用されるため問題ありません
-
-    # すでにロガーにハンドラー（ログの出力先を制御するもの）が設定されている場合、同じログ出力が複数回行われないよう処理を中断する
-    if logger.hasHandlers():
-        return
-
-    # 1日単位でログファイルの中身をリセットし、切り替える設定
-    log_handler = TimedRotatingFileHandler(
-        os.path.join(ct.LOG_DIR_PATH, ct.LOG_FILE),
-        when="D",
-        encoding="utf8"
-    )
-    # 出力するログメッセージのフォーマット定義
-    # - 「levelname」: ログの重要度（INFO, WARNING, ERRORなど）
-    # - 「asctime」: ログのタイムスタンプ（いつ記録されたか）
-    # - 「lineno」: ログが出力されたファイルの行番号
-    # - 「funcName」: ログが出力された関数名
-    # - 「session_id」: セッションID（誰のアプリ操作か分かるように）
-    # - 「message」: ログメッセージ
-    formatter = logging.Formatter(
-        f"[%(levelname)s] %(asctime)s line %(lineno)s, in %(funcName)s, session_id={st.session_state.session_id}: %(message)s"
-    )
-
-    # 定義したフォーマッターの適用
-    log_handler.setFormatter(formatter)
-
-    # ログレベルを「INFO」に設定
-    logger.setLevel(logging.INFO)
-
-    # 作成したハンドラー（ログ出力先を制御するオブジェクト）を、
-    # ロガー（ログメッセージを実際に生成するオブジェクト）に追加してログ出力の最終設定
-    logger.addHandler(log_handler)
 
 def initialize_session_id():
     """
@@ -104,6 +52,33 @@ def initialize_session_id():
     """
     if "session_id" not in st.session_state:
         st.session_state.session_id = uuid4().hex
+
+
+def initialize_logger():
+    """
+    ログ出力の設定
+    """
+    os.makedirs(ct.LOG_DIR_PATH, exist_ok=True)
+
+    logger = logging.getLogger(ct.LOGGER_NAME)
+
+    if logger.hasHandlers():
+        return
+
+    log_handler = TimedRotatingFileHandler(
+        os.path.join(ct.LOG_DIR_PATH, ct.LOG_FILE),
+        when="D",
+        encoding="utf8"
+    )
+
+    formatter = logging.Formatter(
+        f"[%(levelname)s] %(asctime)s line %(lineno)s, in %(funcName)s, "
+        f"session_id={st.session_state.session_id}: %(message)s"
+    )
+
+    log_handler.setFormatter(formatter)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(log_handler)
 
 
 def initialize_retriever():
@@ -114,7 +89,7 @@ def initialize_retriever():
 
     if "retriever" in st.session_state:
         return
-    
+
     docs_all = load_data_sources()
 
     for doc in docs_all:
@@ -131,26 +106,22 @@ def initialize_retriever():
 
     splitted_docs = text_splitter.split_documents(docs_all)
 
-    # ✅ DuckDB バックエンドを明示的に設定
+    # DuckDB バックエンドを明示的に設定
     client_settings = Settings(
         chroma_db_impl="duckdb+parquet",
-        persist_directory=None  # 永続化不要なら None
+        persist_directory=None
     )
 
-    # ✅ ここで明示的に Chroma を new する
     db = Chroma(
         embedding_function=embeddings,
         client_settings=client_settings
     )
 
-    # ✅ ドキュメントを追加
     db.add_documents(splitted_docs)
 
-    # ✅ Retriever 化
     st.session_state.retriever = db.as_retriever(
         search_kwargs={"k": ct.RETRIEVER_TOP_K}
     )
-
 
 
 def initialize_session_state():
@@ -158,99 +129,62 @@ def initialize_session_state():
     初期化データの用意
     """
     if "messages" not in st.session_state:
-        # 「表示用」の会話ログを順次格納するリストを用意
         st.session_state.messages = []
-        # 「LLMとのやりとり用」の会話ログを順次格納するリストを用意
         st.session_state.chat_history = []
 
 
 def load_data_sources():
     """
     RAGの参照先となるデータソースの読み込み
-
-    Returns:
-        読み込んだ通常データソース
     """
-    # データソースを格納する用のリスト
     docs_all = []
-    # ファイル読み込みの実行（渡した各リストにデータが格納される）
     recursive_file_check(ct.RAG_TOP_FOLDER_PATH, docs_all)
 
     web_docs_all = []
-    # ファイルとは別に、指定のWebページ内のデータも読み込み
-    # 読み込み対象のWebページ一覧に対して処理
     for web_url in ct.WEB_URL_LOAD_TARGETS:
-        # 指定のWebページを読み込み
         loader = WebBaseLoader(web_url)
         web_docs = loader.load()
-        # for文の外のリストに読み込んだデータソースを追加
         web_docs_all.extend(web_docs)
-    # 通常読み込みのデータソースにWebページのデータを追加
-    docs_all.extend(web_docs_all)
 
+    docs_all.extend(web_docs_all)
     return docs_all
 
 
 def recursive_file_check(path, docs_all):
     """
-    RAGの参照先となるデータソースの読み込み
-
-    Args:
-        path: 読み込み対象のファイル/フォルダのパス
-        docs_all: データソースを格納する用のリスト
+    RAGの参照先となるデータソースの読み込み（再帰的に探索）
     """
-    # パスがフォルダかどうかを確認
     if os.path.isdir(path):
-        # フォルダの場合、フォルダ内のファイル/フォルダ名の一覧を取得
-        files = os.listdir(path)
-        # 各ファイル/フォルダに対して処理
-        for file in files:
-            # ファイル/フォルダ名だけでなく、フルパスを取得
+        for file in os.listdir(path):
             full_path = os.path.join(path, file)
-            # フルパスを渡し、再帰的にファイル読み込みの関数を実行
             recursive_file_check(full_path, docs_all)
     else:
-        # パスがファイルの場合、ファイル読み込み
         file_load(path, docs_all)
 
 
 def file_load(path, docs_all):
     """
-    ファイルの拡張子に応じて適切なローダーでファイルを読み込み、docs_allに追加する
+    ファイルの拡張子に応じて適切なローダーでファイルを読み込み
     """
-    # ファイルの拡張子を取得
     _, file_extension = os.path.splitext(path)
     file_extension = file_extension.lower()
 
-    # 拡張子ごとにローダーを選択
     if file_extension in ct.SUPPORTED_EXTENSIONS:
         loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
         docs = loader.load()
         docs_all.extend(docs)
-    else:
-        # サポートされていない拡張子の場合は何もしない
-        pass
 
 
 def adjust_string(s):
     """
     Windows環境でRAGが正常動作するよう調整
-    
-    Args:
-        s: 調整を行う文字列
-    
-    Returns:
-        調整を行った文字列
     """
-    # 調整対象は文字列のみ
     if type(s) is not str:
         return s
 
-    # OSがWindowsの場合、Unicode正規化と、cp932（Windows用の文字コード）で表現できない文字を除去
     if sys.platform.startswith("win"):
-        s = unicodedata.normalize('NFC', s)
+        s = unicodedata.normalize("NFC", s)
         s = s.encode("cp932", "ignore").decode("cp932")
         return s
-    
-    # OSがWindows以外の場合はそのまま返す
+
     return s
