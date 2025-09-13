@@ -6,17 +6,17 @@
 # ライブラリの読み込み
 ############################################################
 import os
-import sys
-import unicodedata
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from uuid import uuid4
+import sys
+import unicodedata
 import streamlit as st
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.vectorstores import Chroma
 from chromadb.config import Settings
+from langchain_community.document_loaders import WebBaseLoader
 import constants as ct
 
 
@@ -59,7 +59,6 @@ def initialize_logger():
     ログ出力の設定
     """
     os.makedirs(ct.LOG_DIR_PATH, exist_ok=True)
-
     logger = logging.getLogger(ct.LOGGER_NAME)
 
     if logger.hasHandlers():
@@ -70,12 +69,10 @@ def initialize_logger():
         when="D",
         encoding="utf8"
     )
-
     formatter = logging.Formatter(
         f"[%(levelname)s] %(asctime)s line %(lineno)s, in %(funcName)s, "
         f"session_id={st.session_state.session_id}: %(message)s"
     )
-
     log_handler.setFormatter(formatter)
     logger.setLevel(logging.INFO)
     logger.addHandler(log_handler)
@@ -106,7 +103,7 @@ def initialize_retriever():
 
     splitted_docs = text_splitter.split_documents(docs_all)
 
-    # DuckDB バックエンドを明示的に設定
+    # ✅ DuckDB バックエンドを明示的に設定
     client_settings = Settings(
         chroma_db_impl="duckdb+parquet",
         persist_directory=None
@@ -152,10 +149,11 @@ def load_data_sources():
 
 def recursive_file_check(path, docs_all):
     """
-    RAGの参照先となるデータソースの読み込み（再帰的に探索）
+    RAGの参照先となるデータソースの読み込み
     """
     if os.path.isdir(path):
-        for file in os.listdir(path):
+        files = os.listdir(path)
+        for file in files:
             full_path = os.path.join(path, file)
             recursive_file_check(full_path, docs_all)
     else:
@@ -164,7 +162,7 @@ def recursive_file_check(path, docs_all):
 
 def file_load(path, docs_all):
     """
-    ファイルの拡張子に応じて適切なローダーでファイルを読み込み
+    ファイルの拡張子に応じて適切なローダーでファイルを読み込み、docs_allに追加する
     """
     _, file_extension = os.path.splitext(path)
     file_extension = file_extension.lower()
@@ -183,7 +181,7 @@ def adjust_string(s):
         return s
 
     if sys.platform.startswith("win"):
-        s = unicodedata.normalize("NFC", s)
+        s = unicodedata.normalize('NFC', s)
         s = s.encode("cp932", "ignore").decode("cp932")
         return s
 
