@@ -8,29 +8,26 @@
 import streamlit as st
 import utils
 import constants as ct
+import os
 
 def _format_source_with_page(meta: dict) -> str:
     """
-    PDF のときだけページ番号を併記して表示用の文字列を返す
-    例: ./data/会社について/会社概要.pdf （ページNo.1）
+    ファイル情報を表示用に整形する（PDFの場合はページ番号付き、他は拡張子のみ）
     """
-    src = meta.get("source", "不明なファイル")
-    # PDF 以外はそのまま返す
-    if not isinstance(src, str) or not src.lower().endswith(".pdf"):
-        return src
+    source = meta.get("source", "")
+    ext = os.path.splitext(source)[1].lower()
 
-    page = meta.get("page")
-    if page is None:
-        return src
-
-    # page は 0 始まりのことが多いので +1 して表示
-    try:
-        page_no = int(page) + 1
-    except Exception:
-        # 数値にできない場合はそのまま
-        return src
-
-    return f"{src} （ページNo.{page_no}）"
+    if ext == ".pdf":
+        page = meta.get("page") or meta.get("page_number")
+        if page is not None:
+            # ✅ ページ番号があれば (ページNo.X) を付与
+            return f"{source}（ページNo.{int(page) + 1}）"
+        else:
+            # ✅ ページ番号がない場合はシンプルにPDFとだけ表示
+            return f"{source}（PDF）"
+    else:
+        # ✅ 他のファイルは拡張子を表示（例: DOCX, CSV, TXT）
+        return f"{source}（{ext.upper()[1:]}）"
 ############################################################
 # 関数定義
 ############################################################
@@ -199,11 +196,12 @@ def display_search_llm_response(llm_response):
             # ページ番号を取得
             main_page_number = llm_response["context"][0].metadata["page"]
             # 「メインドキュメントのファイルパス」と「ページ番号」を表示
-            st.success(f"{main_file_path}", icon=icon)
+            main_label = _format_source_with_page(llm_response["context"][0].metadata)
+            st.success(main_label, icon=icon)
         else:
             # 「メインドキュメントのファイルパス」を表示
-            st.success(f"{main_file_path}", icon=icon)
-
+            main_label = _format_source_with_page(llm_response["context"][0].metadata)
+            st.success(main_label, icon=icon)
         # ==========================================
         # ユーザー入力値と関連性が高いサブドキュメントのありかを表示
         # ==========================================
@@ -254,16 +252,23 @@ def display_search_llm_response(llm_response):
                 icon = utils.get_source_icon(sub_choice['source'])
                 sub_label = _format_source_with_page(sub_choice)  # sub_choice に source, page_number が入っている
                 st.info(sub_label, icon=icon)
-                # ページ番号が取得できない場合のための分岐処理
-                if "page_number" in sub_choice:
-                    # 「サブドキュメントのファイルパス」と「ページ番号」を表示
-                    st.info(f"{sub_choice['source']}", icon=icon)
-                else:
-                    # 「サブドキュメントのファイルパス」を表示
-                    st.info(f"{sub_choice['source']}", icon=icon)
-        
-        # 表示用の会話ログに格納するためのデータを用意
-        # - 「mode」: モード（「社内文書検索」or「社内問い合わせ」）
+        # ページ番号が取得できない場合のための分岐処理
+        if "page_number" in sub_choice:
+            # 「サブドキュメントのファイルパス」と「ページ番号」を表示
+            sub_label = _format_source_with_page({
+                "source": sub_choice["source"],
+                "page": sub_choice.get("page_number")
+            })
+        else:
+            # 「サブドキュメントのファイルパス」を表示（ページ番号はNoneとして渡す）
+            sub_label = _format_source_with_page({
+                "source": sub_choice["source"],
+                "page": None
+            })
+        st.info(sub_label, icon=icon)
+
+# 表示用の会話ログに格納するためのデータを用意
+# - 「mode」: モード（「社内文書検索」or「社内問い合わせ」）
         # - 「main_message」: メインドキュメントの補足メッセージ
         # - 「main_file_path」: メインドキュメントのファイルパス
         # - 「main_page_number」: メインドキュメントのページ番号
