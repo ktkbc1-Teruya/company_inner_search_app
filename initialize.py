@@ -55,16 +55,19 @@ def initialize_retriever():
 
     # ✅ Chroma DB の作成または読み込み
     db = Chroma(
+        collection_name="your_collection_name",  # 必須
         embedding_function=embeddings,
-        client_settings=client_settings,
-        persist_directory=persist_dir
+        # persist_directory="db"  # 必要に応じて追加
     )
 
     # ✅ 初回のみドキュメント追加して保存
     if db._collection.count() == 0:
-        db.add_documents(splitted_docs)
-        db.persist()
-        logger.info("✅ 初回起動: ドキュメントを追加して保存しました")
+        if splitted_docs:  # 空リストでない場合のみ追加
+            db.add_documents(splitted_docs)
+            db.persist()
+            logger.info("✅ 初回起動: ドキュメントを追加して保存しました")
+        else:
+            logger.warning("⚠️ 追加するドキュメントがありません")
     else:
         logger.info("✅ 既存のChroma DBをロードしました")
 
@@ -72,3 +75,9 @@ def initialize_retriever():
     st.session_state.retriever = db.as_retriever(
         search_kwargs={"k": ct.RETRIEVER_TOP_K}
     )
+
+def initialize():
+    """
+    アプリ起動時の初期化処理
+    """
+    initialize_retriever()
