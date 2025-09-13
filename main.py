@@ -37,11 +37,9 @@ try:
     # 初期化処理（「initialize.py」の「initialize」関数を実行）
     initialize()
 except Exception as e:
-    # エラーログの出力
     logger.error(f"{ct.INITIALIZE_ERROR_MESSAGE}\n{e}")
-    # エラーメッセージの画面表示
-    st.error(utils.build_error_message(ct.INITIALIZE_ERROR_MESSAGE), icon=ct.ERROR_ICON)
-    # 後続の処理を中断
+    # デバッグ用に詳細エラーを画面表示
+    st.error(f"初期化エラー: {str(e)}", icon=ct.ERROR_ICON)
     st.stop()
 
 # アプリ起動時のログファイルへの出力
