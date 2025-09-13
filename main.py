@@ -18,8 +18,7 @@ import components as cn
 # （自作）変数（定数）がまとめて定義・管理されているモジュール
 import constants as ct
 
-st.set_page_config(page_title=ct.APP_NAME)
-logger = logging.getLogger(ct.LOGGER_NAME)
+
 ############################################################
 # 2. 設定関連
 ############################################################
@@ -43,7 +42,7 @@ except Exception as e:
     logger.error(f"{ct.INITIALIZE_ERROR_MESSAGE}\n{tb}")
     st.error(f"初期化エラー:\n{tb}", icon=ct.ERROR_ICON)   # ← 詳細を画面表示
     st.stop()
-    
+
 # アプリ起動時のログファイルへの出力
 if not "initialized" in st.session_state:
     st.session_state.initialized = True
