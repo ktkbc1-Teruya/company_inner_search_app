@@ -47,6 +47,13 @@ def initialize():
     # RAGのRetrieverを作成
     initialize_retriever()
 
+def initialize_session_id():
+    """
+    セッションIDを初期化
+    """
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = str(uuid4())
+
 
 def initialize_logger():
     """
