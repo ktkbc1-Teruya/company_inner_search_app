@@ -164,3 +164,22 @@ cython_debug/
 # original
 .chroma/
 logs/
+# 環境変数ファイル
+.env
+
+# Python キャッシュ
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 仮想環境
+venv/
+env/
+
+# Streamlit 設定キャッシュ
+.streamlit/
+
+# ログやデータ
+logs/
+data/
