@@ -13,7 +13,7 @@ import sys
 import unicodedata
 from dotenv import load_dotenv
 import streamlit as st
-from docx import Document
+# from docx import Document  # 削除: 未使用
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
@@ -56,6 +56,7 @@ def initialize_logger():
     # 引数に指定した名前のロガー（ログを記録するオブジェクト）を取得
     # 再度別の箇所で呼び出した場合、すでに同じ名前のロガーが存在していれば読み込む
     logger = logging.getLogger(ct.LOGGER_NAME)
+    # loggerはこの関数内のみで使用されるため問題ありません
 
     # すでにロガーにハンドラー（ログの出力先を制御するもの）が設定されている場合、同じログ出力が複数回行われないよう処理を中断する
     if logger.hasHandlers():
@@ -120,11 +121,11 @@ def initialize_retriever():
     
     # 埋め込みモデルの用意
     embeddings = OpenAIEmbeddings()
-    
     # チャンク分割用のオブジェクトを作成
+    # CHUNK_SIZE, HUNK_OVERLAP, RETRIEVER_TOP_Kはctから参照
     text_splitter = CharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50,
+        chunk_size=ct.CHUNK_SIZE,
+        chunk_overlap=ct.CHUNK_OVERLAP,
         separator="\n"
     )
 
@@ -135,7 +136,10 @@ def initialize_retriever():
     db = Chroma.from_documents(splitted_docs, embedding=embeddings)
 
     # ベクターストアを検索するRetrieverの作成
-    st.session_state.retriever = db.as_retriever(search_kwargs={"k": 3})
+    st.session_state.retriever = db.as_retriever(
+        search_kwargs={"k": ct.RETRIEVER_TOP_K}
+    )
+    
 
 
 def initialize_session_state():
@@ -212,12 +216,12 @@ def file_load(path, docs_all):
     # ファイル名（拡張子を含む）を取得
     file_name = os.path.basename(path)
 
-    # 想定していたファイル形式の場合のみ読み込む
-    if file_extension in ct.SUPPORTED_EXTENSIONS:
+    # ファイル名（拡張子を含む）を取得
+    # file_name = os.path.basename(path)  # 未使用なので削除
         # ファイルの拡張子に合ったdata loaderを使ってデータ読み込み
-        loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
-        docs = loader.load()
-        docs_all.extend(docs)
+    loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
+    docs = loader.load()
+    docs_all.extend(docs)
 
 
 def adjust_string(s):
