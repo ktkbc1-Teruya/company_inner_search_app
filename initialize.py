@@ -140,8 +140,14 @@ def initialize_retriever():
     splitted_docs = text_splitter.split_documents(docs_all)
 
     # ベクターストアの作成
-    db = Chroma.from_documents(splitted_docs, embedding=embeddings)
-
+    db = Chroma.from_documents(
+    splitted_docs,
+    embedding=embeddings,
+    client_settings={
+        "chroma_db_impl": "duckdb+parquet",
+        "persist_directory": None
+    }
+)
     # ベクターストアを検索するRetrieverの作成
     st.session_state.retriever = db.as_retriever(
         search_kwargs={"k": ct.RETRIEVER_TOP_K}
@@ -212,25 +218,20 @@ def recursive_file_check(path, docs_all):
 
 def file_load(path, docs_all):
     """
-    ファイル内のデータ読み込み
-
-    Args:
-        path: ファイルパス
-        docs_all: データソースを格納する用のリスト
+    ファイルの拡張子に応じて適切なローダーでファイルを読み込み、docs_allに追加する
     """
     # ファイルの拡張子を取得
-    file_extension = os.path.splitext(path)[1]
+    _, file_extension = os.path.splitext(path)
+    file_extension = file_extension.lower()
 
-    # サポート対象外の拡張子はスキップ
-    if file_extension not in ct.SUPPORTED_EXTENSIONS:
-        print(f"⚠️ スキップ: 未対応の拡張子 {file_extension} - {path}")
-        return
-
-    # 対応する loader を使って読み込み
-    loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
-    docs = loader.load()
-    docs_all.extend(docs)
-
+    # 拡張子ごとにローダーを選択
+    if file_extension in ct.SUPPORTED_EXTENSIONS:
+        loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
+        docs = loader.load()
+        docs_all.extend(docs)
+    else:
+        # サポートされていない拡張子の場合は何もしない
+        pass
 
 
 def adjust_string(s):
