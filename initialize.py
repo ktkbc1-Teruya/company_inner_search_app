@@ -220,15 +220,17 @@ def file_load(path, docs_all):
     """
     # ファイルの拡張子を取得
     file_extension = os.path.splitext(path)[1]
-    # ファイル名（拡張子を含む）を取得
-    file_name = os.path.basename(path)
 
-    # ファイル名（拡張子を含む）を取得
-    # file_name = os.path.basename(path)  # 未使用なので削除
-        # ファイルの拡張子に合ったdata loaderを使ってデータ読み込み
+    # サポート対象外の拡張子はスキップ
+    if file_extension not in ct.SUPPORTED_EXTENSIONS:
+        print(f"⚠️ スキップ: 未対応の拡張子 {file_extension} - {path}")
+        return
+
+    # 対応する loader を使って読み込み
     loader = ct.SUPPORTED_EXTENSIONS[file_extension](path)
     docs = loader.load()
     docs_all.extend(docs)
+
 
 
 def adjust_string(s):
