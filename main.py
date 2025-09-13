@@ -7,6 +7,7 @@
 # ログ出力を行うためのモジュール
 import logging
 # streamlitアプリの表示を担当するモジュール
+import traceback 
 import streamlit as st
 # （自作）画面表示以外の様々な関数が定義されているモジュール
 import utils
@@ -17,7 +18,8 @@ import components as cn
 # （自作）変数（定数）がまとめて定義・管理されているモジュール
 import constants as ct
 
-
+st.set_page_config(page_title=ct.APP_NAME)
+logger = logging.getLogger(ct.LOGGER_NAME)
 ############################################################
 # 2. 設定関連
 ############################################################
@@ -37,11 +39,11 @@ try:
     # 初期化処理（「initialize.py」の「initialize」関数を実行）
     initialize()
 except Exception as e:
-    logger.error(f"{ct.INITIALIZE_ERROR_MESSAGE}\n{e}")
-    # デバッグ用に詳細エラーを画面表示
-    st.error(f"初期化エラー: {str(e)}", icon=ct.ERROR_ICON)
+    tb = traceback.format_exc()   # ← スタックトレースを文字列で取得
+    logger.error(f"{ct.INITIALIZE_ERROR_MESSAGE}\n{tb}")
+    st.error(f"初期化エラー:\n{tb}", icon=ct.ERROR_ICON)   # ← 詳細を画面表示
     st.stop()
-
+    
 # アプリ起動時のログファイルへの出力
 if not "initialized" in st.session_state:
     st.session_state.initialized = True
