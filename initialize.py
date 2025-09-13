@@ -9,14 +9,9 @@ import os
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from uuid import uuid4
-import sys
-import unicodedata
 import streamlit as st
-# from docx import Document  # 削除: 未使用
-from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI 
-from langchain_community.vectorstores import Chroma
 import constants as ct
 
 
@@ -97,62 +92,51 @@ def initialize_logger():
     logger.addHandler(log_handler)
 
 
-def initialize_session_id():
-    """
-    セッションIDの作成
-    """
-    if "session_id" not in st.session_state:
-        # ランダムな文字列（セッションID）を、ログ出力用に作成
-        st.session_state.session_id = uuid4().hex
-
-
 def initialize_retriever():
     """
-    画面読み込み時にRAGのRetriever（ベクターストアから検索するオブジェクト）を作成
+    画面読み込み時にRAGのRetrieverを作成
     """
-    # ロガーを読み込むことで、後続の処理中に発生したエラーなどがログファイルに記録される
     logger = logging.getLogger(ct.LOGGER_NAME)
 
-    # すでにRetrieverが作成済みの場合、後続の処理を中断
     if "retriever" in st.session_state:
         return
     
-    # RAGの参照先となるデータソースの読み込み
     docs_all = load_data_sources()
 
-    # OSがWindowsの場合、Unicode正規化と、cp932（Windows用の文字コード）で表現できない文字を除去
     for doc in docs_all:
         doc.page_content = adjust_string(doc.page_content)
         for key in doc.metadata:
             doc.metadata[key] = adjust_string(doc.metadata[key])
-    
-    # 埋め込みモデルの用意
+
     embeddings = OpenAIEmbeddings()
-    # チャンク分割用のオブジェクトを作成
-    # CHUNK_SIZE, HUNK_OVERLAP, RETRIEVER_TOP_Kはctから参照
     text_splitter = CharacterTextSplitter(
         chunk_size=ct.CHUNK_SIZE,
         chunk_overlap=ct.CHUNK_OVERLAP,
         separator="\n"
     )
 
-    # チャンク分割を実施
     splitted_docs = text_splitter.split_documents(docs_all)
 
-    # ベクターストアの作成
-    db = Chroma.from_documents(
-    splitted_docs,
-    embedding=embeddings,
-    client_settings={
-        "chroma_db_impl": "duckdb+parquet",
-        "persist_directory": None
-    }
-)
-    # ベクターストアを検索するRetrieverの作成
+    # ✅ DuckDB バックエンドを明示的に設定
+    client_settings = Settings(
+        chroma_db_impl="duckdb+parquet",
+        persist_directory=None  # 永続化不要なら None
+    )
+
+    # ✅ ここで明示的に Chroma を new する
+    db = Chroma(
+        embedding_function=embeddings,
+        client_settings=client_settings
+    )
+
+    # ✅ ドキュメントを追加
+    db.add_documents(splitted_docs)
+
+    # ✅ Retriever 化
     st.session_state.retriever = db.as_retriever(
         search_kwargs={"k": ct.RETRIEVER_TOP_K}
     )
-    
+
 
 
 def initialize_session_state():
