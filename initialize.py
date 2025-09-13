@@ -11,21 +11,28 @@ from logging.handlers import TimedRotatingFileHandler
 from uuid import uuid4
 import sys
 import unicodedata
-from dotenv import load_dotenv
 import streamlit as st
 # from docx import Document  # 削除: 未使用
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI 
 from langchain_community.vectorstores import Chroma
 import constants as ct
 
 
+
+# Streamlit Cloud の Secrets からキーを取得
+api_key = st.secrets["OPENAI_API_KEY"]
+
+llm = ChatOpenAI(
+    openai_api_key=api_key,
+    model="gpt-4o-mini"
+)
+
 ############################################################
 # 設定関連
 ############################################################
-# 「.env」ファイルで定義した環境変数の読み込み
-load_dotenv()
+
 
 
 ############################################################
