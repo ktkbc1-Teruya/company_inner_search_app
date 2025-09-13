@@ -91,6 +91,13 @@ def initialize_logger():
     # ロガー（ログメッセージを実際に生成するオブジェクト）に追加してログ出力の最終設定
     logger.addHandler(log_handler)
 
+def initialize_session_id():
+    """
+    セッションIDを生成して st.session_state に保存
+    """
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = uuid4().hex
+
 
 def initialize_retriever():
     """
