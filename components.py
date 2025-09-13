@@ -9,7 +9,28 @@ import streamlit as st
 import utils
 import constants as ct
 
+def _format_source_with_page(meta: dict) -> str:
+    """
+    PDF のときだけページ番号を併記して表示用の文字列を返す
+    例: ./data/会社について/会社概要.pdf （ページNo.1）
+    """
+    src = meta.get("source", "不明なファイル")
+    # PDF 以外はそのまま返す
+    if not isinstance(src, str) or not src.lower().endswith(".pdf"):
+        return src
 
+    page = meta.get("page")
+    if page is None:
+        return src
+
+    # page は 0 始まりのことが多いので +1 して表示
+    try:
+        page_no = int(page) + 1
+    except Exception:
+        # 数値にできない場合はそのまま
+        return src
+
+    return f"{src} （ページNo.{page_no}）"
 ############################################################
 # 関数定義
 ############################################################
@@ -23,17 +44,31 @@ def display_app_title():
 
 def display_select_mode():
     """
-    回答モードのラジオボタンを表示
+    回答モードの選択と利用方法・注意事項をサイドバーに表示
     """
-    # 回答モードを選択する用のラジオボタンを表示
-    col1, col2 = st.columns([100, 1])
-    with col1:
-        # 「label_visibility="collapsed"」とすることで、ラジオボタンを非表示にする
-        st.session_state.mode = st.radio(
-            label="",
-            options=[ct.ANSWER_MODE_1, ct.ANSWER_MODE_2],
-            label_visibility="collapsed"
-        )
+    # サイドバー全体のタイトル
+    st.sidebar.title("利用目的")
+
+    # 回答モードを選択する用のラジオボタン
+    st.session_state.mode = st.sidebar.radio(
+        "モードを選択してください",
+        options=[ct.ANSWER_MODE_1, ct.ANSWER_MODE_2],
+    )
+
+    # 利用方法
+    st.sidebar.markdown("### 利用方法")
+    st.sidebar.info(
+        "・『社内文書検索』を選択すると、入力内容に関連する社内文書を表示します。\n"
+        "・『社内問い合わせ』を選択すると、入力内容に関連する問い合わせ内容と回答を表示します。"
+    )
+
+    # 注意事項
+    st.sidebar.markdown("### 注意事項")
+    st.sidebar.warning(
+        "・機密情報や個人情報を入力しないようにしてください。\n"
+        "・表示結果は参考情報であり、最終判断は必ず担当部署で行ってください。"
+    )
+
 
 
 def display_initial_ai_message():
@@ -155,7 +190,11 @@ def display_search_llm_response(llm_response):
         
         # 参照元のありかに応じて、適したアイコンを取得
         icon = utils.get_source_icon(main_file_path)
+        main_label = _format_source_with_page(llm_response["context"][0].metadata)
+        st.success(main_label, icon=icon)
+
         # ページ番号が取得できた場合のみ、ページ番号を表示（ドキュメントによっては取得できない場合がある）
+        main_page_number = None
         if "page" in llm_response["context"][0].metadata:
             # ページ番号を取得
             main_page_number = llm_response["context"][0].metadata["page"]
@@ -213,6 +252,8 @@ def display_search_llm_response(llm_response):
             for sub_choice in sub_choices:
                 # 参照元のありかに応じて、適したアイコンを取得
                 icon = utils.get_source_icon(sub_choice['source'])
+                sub_label = _format_source_with_page(sub_choice)  # sub_choice に source, page_number が入っている
+                st.info(sub_label, icon=icon)
                 # ページ番号が取得できない場合のための分岐処理
                 if "page_number" in sub_choice:
                     # 「サブドキュメントのファイルパス」と「ページ番号」を表示
@@ -269,6 +310,9 @@ def display_contact_llm_response(llm_response):
     """
     # LLMからの回答を表示
     st.markdown(llm_response["answer"])
+    # 参照元のファイルパスの一覧を格納するためのリストを用意
+    file_path_list = []
+    file_info_list = []
 
     # ユーザーの質問・要望に適切な回答を行うための情報が、社内文書のデータベースに存在しなかった場合
     if llm_response["answer"] != ct.INQUIRY_NO_MATCH_ANSWER:
@@ -279,37 +323,23 @@ def display_contact_llm_response(llm_response):
         message = "情報源"
         st.markdown(f"##### {message}")
 
-        # 参照元のファイルパスの一覧を格納するためのリストを用意
-        file_path_list = []
-        file_info_list = []
+    # LLMが回答生成の参照元として使ったドキュメントの一覧が「context」内のリストの中に入っているため、ループ処理
+    for document in llm_response["context"]:
+        # 表示用のファイル情報（PDFの場合のみページ番号付き）
+        file_info = _format_source_with_page(document.metadata)
 
-        # LLMが回答生成の参照元として使ったドキュメントの一覧が「context」内のリストの中に入っているため、ループ処理
-        for document in llm_response["context"]:
-            # ファイルパスを取得
-            file_path = document.metadata["source"]
-            # ファイルパスの重複は除去
-            if file_path in file_path_list:
-                continue
+        # ファイルパスの重複は除去（ページ番号は無視して source で判定）
+        file_path = document.metadata["source"]
+        if file_path in file_path_list:
+            continue
 
-            # ページ番号が取得できた場合のみ、ページ番号を表示（ドキュメントによっては取得できない場合がある）
-            if "page" in document.metadata:
-                # ページ番号を取得
-                page_number = document.metadata["page"]
-                # 「ファイルパス」と「ページ番号」
-                file_info = f"{file_path}"
-            else:
-                # 「ファイルパス」のみ
-                file_info = f"{file_path}"
+        icon = utils.get_source_icon(file_path)
+        st.info(file_info, icon=icon)
 
-            # 参照元のありかに応じて、適したアイコンを取得
-            icon = utils.get_source_icon(file_path)
-            # ファイル情報を表示
-            st.info(file_info, icon=icon)
-
-            # 重複チェック用に、ファイルパスをリストに順次追加
-            file_path_list.append(file_path)
-            # ファイル情報をリストに順次追加
-            file_info_list.append(file_info)
+        # 重複チェック用にファイルパスを保存
+        file_path_list.append(file_path)
+        file_info_list.append(file_info)
+        file_info_list.append(file_info)
 
     # 表示用の会話ログに格納するためのデータを用意
     # - 「mode」: モード（「社内文書検索」or「社内問い合わせ」）
