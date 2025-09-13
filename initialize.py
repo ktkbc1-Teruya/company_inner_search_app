@@ -5,6 +5,17 @@ from langchain.text_splitter import CharacterTextSplitter
 import logging, os, streamlit as st
 import constants as ct
 
+# 仮の load_data_sources 関数（実装に応じて修正してください）
+def load_data_sources():
+    # ここでデータソースをロードして Document オブジェクトのリストを返す
+    # 例: return [Document(page_content="...", metadata={...}), ...]
+    return []
+
+# 仮の adjust_string 関数（必要に応じて実装を変更してください）
+def adjust_string(s):
+    # ここで文字列の調整処理を行う（例: 改行コードの統一など）
+    return s
+
 def initialize_retriever():
     """
     画面読み込み時にRAGのRetrieverを作成
