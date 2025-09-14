@@ -18,15 +18,22 @@ def _format_source_with_page(meta: dict) -> str:
     ext = os.path.splitext(source)[1].lower()
 
     if ext == ".pdf":
-        page = meta.get("page") or meta.get("page_number")
+        # ページ番号のキーを統一して取得（複数のキー名に対応）
+        page = meta.get("page")
+        if page is None:
+            page = meta.get("page_number")
+        if page is None:
+            page = meta.get("main_page_number")
+        
+        # page=0も有効な値として扱う（Noneでない場合）
         if page is not None:
-            # ✅ ページ番号があれば (ページNo.X) を付与
+            # ページ番号があれば (ページNo.X) を付与（0ベースなので+1）
             return f"{source}（ページNo.{int(page) + 1}）"
         else:
-            # ✅ ページ番号がない場合はシンプルにPDFとだけ表示
+            # ページ番号がない場合はシンプルにPDFとだけ表示
             return f"{source}（PDF）"
     else:
-        # ✅ 他のファイルは拡張子を表示（例: DOCX, CSV, TXT）
+        # 他のファイルは拡張子を表示（例: DOCX, CSV, TXT）
         return f"{source}（{ext.upper()[1:]}）"
 ############################################################
 # 関数定義
